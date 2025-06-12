@@ -13,6 +13,47 @@ export class OctoPrintImplementation extends PrinterImplementation {
     return response.data;
   }
 
+  async uploadFile(host: string, port: string, apiKey: string, filePath: string, filename: string, print: boolean = false): Promise<any> {
+    const lowerFilename = filename.toLowerCase();
+    if (lowerFilename.endsWith(".stl") || lowerFilename.endsWith(".3mf")) {
+      // Assume model files might not always be printed, so print is explicitly passed.
+      // However, uploadModelFile has a default for print if not provided, this ensures explicitness.
+      return this.uploadModelFile(host, port, apiKey, filePath, filename, print);
+    } else if (lowerFilename.endsWith(".gcode") || lowerFilename.endsWith(".gco") || lowerFilename.endsWith(".g")) {
+      // uploadGcodeFile requires the print parameter.
+      return this.uploadGcodeFile(host, port, apiKey, filePath, filename, print);
+    } else {
+      // Potentially, we could try a generic upload to /api/files/local if OctoPrint supports it
+      // without specific content type validation for unknown types, or simply reject.
+      // For now, rejecting unknown types seems safer.
+      return Promise.reject(new Error(`Unsupported file type for uploadFile: ${filename}. Only .stl, .3mf, and .gcode/.gco/.g are supported.`));
+    }
+  }
+
+  async getJobInfo(host: string, port: string, apiKey: string) {
+    const url = `http://${host}:${port}/api/job`;
+    const response = await this.apiClient.get(url, {
+      headers: {
+        "X-Api-Key": apiKey
+      }
+    });
+    return response.data;
+  }
+
+  // Ensure listSystemCommands and other methods follow, maintaining logical grouping if possible.
+  // The previous diff showed getJobInfo was added before listSystemCommands.
+  // The new uploadFile method is added before getJobInfo.
+
+  async listSystemCommands(host: string, port: string, apiKey: string) {
+    const url = `http://${host}:${port}/api/system/commands`;
+    const response = await this.apiClient.get(url, {
+      headers: {
+        "X-Api-Key": apiKey
+      }
+    });
+    return response.data;
+  }
+
   async getFiles(host: string, port: string, apiKey: string, folderPath?: string, recursive: boolean = false) {
     // Base URL for local files, always targets the 'local' location.
     // /api/files without a location shows all files from all origins.
@@ -300,4 +341,15 @@ export class OctoPrintImplementation extends PrinterImplementation {
     });
     return { status: response.status, data: response.data };
   }
-} 
+
+  async sendCommandToPrinter(host: string, port: string, apiKey: string, payload: { command?: string, commands?: string[] }) {
+    const url = `http://${host}:${port}/api/printer/command`;
+    const response = await this.apiClient.post(url, payload, {
+      headers: {
+        "X-Api-Key": apiKey,
+        "Content-Type": "application/json"
+      }
+    });
+    return response.data;
+  }
+}
