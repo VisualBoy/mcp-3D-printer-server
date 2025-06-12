@@ -13,8 +13,29 @@ export class OctoPrintImplementation extends PrinterImplementation {
     return response.data;
   }
 
-  async getFiles(host: string, port: string, apiKey: string) {
-    const url = `http://${host}:${port}/api/files`;
+  async getFiles(host: string, port: string, apiKey: string, folderPath?: string, recursive: boolean = false) {
+    // Base URL for local files, always targets the 'local' location.
+    // /api/files without a location shows all files from all origins.
+    // /api/files/{location} shows files from a specific origin. We default to 'local'.
+    let effectiveApiPath = 'local';
+    if (folderPath && folderPath.trim() !== '') {
+      // Append user-provided path, ensuring no leading/trailing slashes issues from folderPath
+      // and that it's correctly joined.
+      const cleanedPath = folderPath.split('/').filter(p => p.length > 0).join('/');
+      if (cleanedPath) { // Ensure cleanedPath is not empty
+        effectiveApiPath += '/' + cleanedPath;
+      }
+    }
+
+    // Use URL object for robust construction and adding query parameters
+    const urlObj = new URL(`http://${host}:${port}/api/files/${effectiveApiPath}`);
+
+    if (recursive) {
+      urlObj.searchParams.append("recursive", "true");
+    }
+
+    const url = urlObj.toString();
+
     const response = await this.apiClient.get(url, {
       headers: {
         "X-Api-Key": apiKey
@@ -229,5 +250,54 @@ export class OctoPrintImplementation extends PrinterImplementation {
       }
     });
     return response.data;
+  }
+
+  async getConnectionSettings(host: string, port: string, apiKey: string) {
+    const url = `http://${host}:${port}/api/connection`;
+    const response = await this.apiClient.get(url, {
+      headers: {
+        "X-Api-Key": apiKey
+      }
+    });
+    return response.data;
+  }
+
+  async connectToPrinter(host: string, port: string, apiKey: string, connectionSettings?: any) {
+    const url = `http://${host}:${port}/api/connection`;
+    const payload: any = {
+      command: "connect"
+    };
+    if (connectionSettings) {
+      // Optional parameters as per OctoPrint documentation:
+      // port (serial port), baudrate, printerProfile, save, autoconnect
+      if (connectionSettings.port) payload.port = connectionSettings.port;
+      if (connectionSettings.baudrate) payload.baudrate = connectionSettings.baudrate;
+      if (connectionSettings.printerProfile) payload.printerProfile = connectionSettings.printerProfile;
+      if (typeof connectionSettings.save === 'boolean') payload.save = connectionSettings.save;
+      if (typeof connectionSettings.autoconnect === 'boolean') payload.autoconnect = connectionSettings.autoconnect;
+    }
+    const response = await this.apiClient.post(url, payload, {
+      headers: {
+        "X-Api-Key": apiKey,
+        "Content-Type": "application/json"
+      }
+    });
+    // OctoPrint API returns 204 No Content on successful connect/disconnect
+    // For consistency, we can return a success message or the status code
+    return { status: response.status, data: response.data };
+  }
+
+  async disconnectFromPrinter(host: string, port: string, apiKey: string) {
+    const url = `http://${host}:${port}/api/connection`;
+    const payload = {
+      command: "disconnect"
+    };
+    const response = await this.apiClient.post(url, payload, {
+      headers: {
+        "X-Api-Key": apiKey,
+        "Content-Type": "application/json"
+      }
+    });
+    return { status: response.status, data: response.data };
   }
 } 
