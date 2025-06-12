@@ -583,7 +583,7 @@ class ThreeDPrinterMCPServer {
     });
 
     // Handle tool calls
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const toolHandlers = this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
       
       // Set default values for common parameters
@@ -596,6 +596,130 @@ class ThreeDPrinterMCPServer {
       const slicerType = String(args?.slicer_type || DEFAULT_SLICER_TYPE) as 'prusaslicer' | 'cura' | 'slic3r';
       const slicerPath = String(args?.slicer_path || DEFAULT_SLICER_PATH);
       const slicerProfile = String(args?.slicer_profile || DEFAULT_SLICER_PROFILE);
+
+      // Conditionally register OctoPrint tool handlers
+      if (process.env.PRINTER_TYPE === 'octoprint') {
+        const { OctoPrintImplementation } = await import("./printers/octoprint.js");
+        const octoPrint = new OctoPrintImplementation();
+
+        const getOctoPrintCredentials = () => {
+          const apiKey = process.env.OCTOPRINT_API_KEY;
+          const octoPrintUrlString = process.env.OCTOPRINT_URL;
+          if (!apiKey || !octoPrintUrlString) {
+            throw new Error('OCTOPRINT_API_KEY and OCTOPRINT_URL environment variables are required when PRINTER_TYPE is "octoprint".');
+          }
+          try {
+            const url = new URL(octoPrintUrlString);
+            const host = url.hostname;
+            const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+            return { apiKey, host, port };
+          } catch (error) {
+            throw new Error('Invalid OCTOPRINT_URL format.');
+          }
+        };
+
+        toolHandlers.registerTool("get_octoprint_status", async () => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.getStatus(host, port, apiKey);
+        });
+
+        toolHandlers.registerTool("upload_octoprint_file", async (args: { filePath: string, filename: string, print?: boolean }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          const printBoolean = args.print === undefined ? false : args.print;
+          return octoPrint.uploadFile(host, port, apiKey, args.filePath, args.filename, printBoolean);
+        });
+
+        toolHandlers.registerTool("get_octoprint_job_info", async () => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.getJobInfo(host, port, apiKey);
+        });
+
+        toolHandlers.registerTool("list_octoprint_system_commands", async () => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.listSystemCommands(host, port, apiKey);
+        });
+
+        toolHandlers.registerTool("list_octoprint_files", async (args?: { folderPath?: string, recursive?: boolean }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.getFiles(host, port, apiKey, args?.folderPath, args?.recursive);
+        });
+
+        toolHandlers.registerTool("get_octoprint_file_details", async (args: { filename: string }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.getFile(host, port, apiKey, args.filename);
+        });
+
+        toolHandlers.registerTool("upload_octoprint_model_file", async (args: { filePath: string, filename: string, print?: boolean }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          const printBoolean = args.print === undefined ? false : args.print;
+          return octoPrint.uploadModelFile(host, port, apiKey, args.filePath, args.filename, printBoolean);
+        });
+
+        toolHandlers.registerTool("upload_octoprint_gcode_file", async (args: { filePath: string, filename: string, print: boolean }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.uploadGcodeFile(host, port, apiKey, args.filePath, args.filename, args.print);
+        });
+
+        toolHandlers.registerTool("select_and_print_octoprint_file", async (args: { filename: string }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.startJob(host, port, apiKey, args.filename);
+        });
+
+        toolHandlers.registerTool("cancel_octoprint_job", async () => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.cancelJob(host, port, apiKey);
+        });
+
+        toolHandlers.registerTool("set_octoprint_temperature", async (args: { component: string, temperature: number }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.setTemperature(host, port, apiKey, args.component, args.temperature);
+        });
+
+        toolHandlers.registerTool("start_octoprint_slicing", async (args: { stlFilePath: string, remoteFilename: string, slicer: string, printerProfile: string, gcodeFilename?: string, slicingProfile?: string, selectAfterSlicing?: boolean, printAfterSlicing?: boolean }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.startSlicing(host, port, apiKey, args.stlFilePath, args.remoteFilename, args.slicer, args.printerProfile, args.gcodeFilename, args.slicingProfile, args.selectAfterSlicing, args.printAfterSlicing);
+        });
+
+        toolHandlers.registerTool("list_octoprint_printer_profiles", async () => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.listPrinterProfiles(host, port, apiKey);
+        });
+
+        toolHandlers.registerTool("add_octoprint_printer_profile", async (args: { profileData: any }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.addPrinterProfile(host, port, apiKey, args.profileData);
+        });
+
+        toolHandlers.registerTool("edit_octoprint_printer_profile", async (args: { profileId: string, profileData: any }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.editPrinterProfile(host, port, apiKey, args.profileId, args.profileData);
+        });
+
+        toolHandlers.registerTool("pause_octoprint_job", async () => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.pauseJob(host, port, apiKey);
+        });
+
+        toolHandlers.registerTool("get_octoprint_connection_settings", async () => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.getConnectionSettings(host, port, apiKey);
+        });
+
+        toolHandlers.registerTool("connect_octoprint_printer", async (args?: { connectionSettings?: any }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.connectToPrinter(host, port, apiKey, args?.connectionSettings);
+        });
+
+        toolHandlers.registerTool("disconnect_octoprint_printer", async () => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.disconnectFromPrinter(host, port, apiKey);
+        });
+
+        toolHandlers.registerTool("send_gcode_command", async (args: { payload: { command?: string, commands?: string[] } }) => {
+          const { apiKey, host, port } = getOctoPrintCredentials();
+          return octoPrint.sendCommandToPrinter(host, port, apiKey, args.payload);
+        });
+      }
 
       try {
         let result;
