@@ -7,6 +7,24 @@ export type BambuFTP = {
   removeFile: (path: string) => Promise<void>;
 };
 
+export interface Printer {
+    getJobInfo(host: string, port: string, apiKey: string): Promise<any>;
+    getFiles(host: string, port: string, apiKey: string, folderPath?: string, recursive?: boolean): Promise<any>;
+    uploadFile(host: string, port: string, apiKey: string, filePath: string, filename: string, print: boolean): Promise<any>;
+    selectFile(host: string, port: string, apiKey: string, filePath: string, print: boolean): Promise<any>;
+    issueCommand(host: string, port: string, apiKey: string, command: 'start' | 'pause' | 'cancel' | 'connect' | 'disconnect', action?: 'pause' | 'resume' | 'toggle'): Promise<any>;
+    issueToolCommand(host: string, port: string, apiKey: string, command: 'target' | 'offset' | 'extrude', target: number, temp?: number): Promise<any>;
+    issueBedCommand(host: string, port: string, apiKey: string, command: 'target' | 'offset', temp?: number): Promise<any>;
+    issueCustomCommand(host: string, port: string, apiKey: string, command: string | string[]): Promise<any>;
+    getPrinterProfiles(host: string, port: string, apiKey: string): Promise<any>;
+    addPrinterProfile(host: string, port: string, apiKey: string, profileData: any): Promise<any>;
+    editPrinterProfile(host: string, port: string, apiKey: string, profileId: string, profileData: any): Promise<any>;
+    removePrinterProfile(host: string, port: string, apiKey: string, profileId: string): Promise<any>;
+    getSlicingProfiles(host: string, port: string, apiKey: string): Promise<any>;
+    getSlicerProfile(host: string, port: string, apiKey: string, slicer: string, profileName: string): Promise<any>;
+    getConnectionSettings(host: string, port: string, apiKey: string): Promise<any>;
+}
+
 // Base class for printer implementations
 export abstract class PrinterImplementation {
   protected apiClient: AxiosInstance;
